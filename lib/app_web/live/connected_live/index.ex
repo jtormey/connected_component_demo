@@ -5,10 +5,11 @@ defmodule AppWeb.ConnectedLive.Index do
 
   def render(assigns) do
     ~H"""
-    <div class="max-w-5xl mx-auto">
+    <div>
       <div class="mb-8">
         <.button phx-click="inc_a_pubsub">Increment A (PubSub)</.button>
         <.button phx-click="inc_b_pubsub">Increment B (PubSub)</.button>
+        <.button phx-click="inc_nested_pubsub">Increment Nested (PubSub)</.button>
       </div>
       <.tab_group>
         <:tab active={@tab == "a"} patch={~p"/a"}>Tab Component A</:tab>
@@ -33,6 +34,11 @@ defmodule AppWeb.ConnectedLive.Index do
 
   def handle_event("inc_b_pubsub", _params, socket) do
     Phoenix.PubSub.broadcast(App.PubSub, "tab_b_updates", :inc)
+    {:noreply, socket}
+  end
+
+  def handle_event("inc_nested_pubsub", _params, socket) do
+    Phoenix.PubSub.broadcast(App.PubSub, "nested_updates", :inc)
     {:noreply, socket}
   end
 end

@@ -1,6 +1,8 @@
 defmodule AppWeb.ConnectedLive.TabComponent do
   use AppWeb, :connected_component
 
+  alias AppWeb.ConnectedLive
+
   def render(assigns) do
     ~H"""
     <div {@connected_attrs} class="border border-zinc-200 p-8 rounded-xl">
@@ -9,6 +11,14 @@ defmodule AppWeb.ConnectedLive.TabComponent do
       </div>
       <.button phx-click="inc" phx-target={@myself}>Increment (handle_event)</.button>
       <.button phx-click="inc_send" phx-target={@myself}>Increment (send_component)</.button>
+      <div class="mt-8">
+        <.live_component
+          module={ConnectedLive.NestedComponent}
+          id="nested"
+          parent={@myself}
+          count={0}
+        />
+      </div>
     </div>
     """
   end
