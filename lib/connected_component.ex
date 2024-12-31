@@ -47,7 +47,8 @@ defmodule ConnectedComponent do
   @connected_tag :__connected_tag__
   @connected_mounted :__connected_mounted__
   @connected_attach :__connected_attach__
-  @connected_detach_event "__connected_detach__"
+  @connected_detach :__connected_detach__
+  @connected_detach_event "phx:connected_detach"
 
   defmacro __using__(_opts) do
     quote do
@@ -93,16 +94,11 @@ defmodule ConnectedComponent do
 
     def on_mount(:default, _params, _session, socket) do
       {:cont,
-       socket
-       |> attach_hook(
-         :handle_attach_component,
+       attach_hook(
+         socket,
+         :connected_handle_info,
          :handle_info,
-         &ConnectedComponent.handle_attach_component/2
-       )
-       |> attach_hook(
-         :handle_detach_component,
-         :handle_event,
-         &ConnectedComponent.handle_detach_component/3
+         &ConnectedComponent.connected_handle_info/2
        )}
     end
   end
@@ -127,50 +123,26 @@ defmodule ConnectedComponent do
   @doc """
   Handler function for handle_info hook in ConnectedComponent.LiveView.
   """
-  def handle_attach_component({@connected_attach, cid, {module, id}}, socket) do
-    handle_info = fn
-      {@connected_tag, ^cid, message}, socket ->
-        if get_connected_cid(socket, cid) do
-          send_update(module, %{@connected_tag => :handle_info, :id => id, :message => message})
-        end
-
-        {:halt, socket}
-
-      _otherwise, socket ->
-        {:cont, socket}
-    end
-
-    {:halt,
-     socket
-     |> put_connected_cid(cid, {module, id})
-     |> attach_hook("#{module}.#{id}", :handle_info, handle_info)}
+  def connected_handle_info({@connected_attach, cid, {module, id}}, socket) do
+    {:halt, put_connected_cid(socket, cid, {module, id})}
   end
 
-  def handle_attach_component(_info, socket), do: {:cont, socket}
+  def connected_handle_info({@connected_detach, cid}, socket) do
+    {:halt, delete_connected_cid(socket, cid)}
+  end
 
-  @doc """
-  Handler function for handle_event hook in ConnectedComponent.LiveView.
-  """
-  def handle_detach_component(@connected_detach_event, %{"myself" => target}, socket) do
-    cid = %Phoenix.LiveComponent.CID{cid: String.to_integer(target)}
-
+  def connected_handle_info({@connected_tag, cid, message}, socket) do
     case get_connected_cid(socket, cid) do
       {module, id} ->
-        component_pid = Process.get({@connected_process_dict, cid})
-        send(component_pid, :unmount)
-        Process.delete({@connected_process_dict, cid})
-
-        {:halt,
-         socket
-         |> delete_connected_cid(cid)
-         |> detach_hook("#{module}.#{id}", :handle_info)}
+        send_update(module, %{@connected_tag => :handle_info, :id => id, :message => message})
+        {:halt, socket}
 
       _otherwise ->
         {:halt, socket}
     end
   end
 
-  def handle_detach_component(_event, _params, socket), do: {:cont, socket}
+  def connected_handle_info(_info, socket), do: {:cont, socket}
 
   @doc """
   Callback implementation for LiveComponent `update/2`.
@@ -191,15 +163,16 @@ defmodule ConnectedComponent do
         :mounted
       else
         connected_remove =
-          Phoenix.LiveView.JS.push(
-            @connected_detach_event,
-            value: %{myself: to_string(socket.assigns.myself)}
-          )
+          Phoenix.LiveView.JS.push(@connected_detach_event, target: socket.assigns.myself)
 
         socket
         |> assign(assigns)
         |> assign(@connected_mounted, true)
         |> assign(:connected_attrs, %{"phx-remove": connected_remove})
+        |> attach_hook(:connected_handle_detach, :handle_event, fn
+          @connected_detach_event, _params, socket -> {:halt, detach_component_process(socket)}
+          _event, _params, socket -> {:cont, socket}
+        end)
         |> component_module.on_mount()
       end
 
@@ -216,16 +189,7 @@ defmodule ConnectedComponent do
           socket
 
         {:ok, socket, process_setup} when is_function(process_setup, 0) ->
-          cid = socket.assigns.myself
-
-          send(self(), {@connected_attach, cid, {component_module, socket.assigns.id}})
-
-          spawn_args = [self(), cid, process_setup]
-          pid = spawn_link(__MODULE__, :component_process, spawn_args)
-
-          Process.put({@connected_process_dict, cid}, pid)
-
-          socket
+          attach_component_process(socket, component_module, process_setup)
       end
 
     component_module.handle_update(assigns, socket)
@@ -255,6 +219,32 @@ defmodule ConnectedComponent do
     private = socket.private[@connected_cids] || %{}
     private = Map.delete(private, cid)
     Phoenix.LiveView.put_private(socket, @connected_cids, private)
+  end
+
+  defp attach_component_process(socket, component_module, process_setup) do
+    cid = socket.assigns.myself
+
+    send(self(), {@connected_attach, cid, {component_module, socket.assigns.id}})
+
+    spawn_args = [self(), cid, process_setup]
+    pid = spawn_link(__MODULE__, :component_process, spawn_args)
+
+    Process.put({@connected_process_dict, cid}, pid)
+
+    socket
+  end
+
+  defp detach_component_process(socket) do
+    cid = socket.assigns.myself
+
+    send(self(), {@connected_detach, cid})
+
+    if component_pid = Process.get({@connected_process_dict, cid}) do
+      send(component_pid, :unmount)
+      Process.delete({@connected_process_dict, cid})
+    end
+
+    socket
   end
 
   defp component_process_lifecycle(parent_pid, cid) do
