@@ -106,9 +106,13 @@ defmodule ConnectedComponent do
   def attach_component(socket, module, opts) do
     id = opts[:id] || raise("opt :id is required when calling attach_component/3")
 
-    handle_info = fn {@connected_tag, {^module, ^id}, message}, socket ->
-      send_update(module, %{@connected_tag => :handle_info, :id => id, :message => message})
-      {:halt, socket}
+    handle_info = fn
+      {@connected_tag, {^module, ^id}, message}, socket ->
+        send_update(module, %{@connected_tag => :handle_info, :id => id, :message => message})
+        {:halt, socket}
+
+      _otherwise, socket ->
+        {:cont, socket}
     end
 
     attach_hook(socket, "#{module}.#{id}", :handle_info, handle_info)
@@ -210,13 +214,13 @@ defmodule ConnectedComponent do
         {:ok, socket, process_setup} when is_function(process_setup, 0) ->
           details = {component_module, socket.assigns.id}
 
+          send(self(), {@connected_attach, details})
+
           spawn_args = [self(), details, process_setup]
           pid = spawn_link(__MODULE__, :component_process, spawn_args)
 
           Process.put({@connected_process_dict, details}, pid)
           Process.put({@connected_process_dict, socket.assigns.myself}, details)
-
-          send(self(), {@connected_attach, details})
 
           socket
       end
