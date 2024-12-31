@@ -53,6 +53,8 @@ defmodule AppWeb do
       use Phoenix.LiveView,
         layout: {AppWeb.Layouts, :app}
 
+      use ConnectedComponent.LiveView
+
       unquote(html_helpers())
     end
   end
@@ -60,6 +62,14 @@ defmodule AppWeb do
   def live_component do
     quote do
       use Phoenix.LiveComponent
+
+      unquote(html_helpers())
+    end
+  end
+
+  def connected_component do
+    quote do
+      use ConnectedComponent
 
       unquote(html_helpers())
     end
