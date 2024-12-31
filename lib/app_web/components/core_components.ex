@@ -595,6 +595,36 @@ defmodule AppWeb.CoreComponents do
     """
   end
 
+  slot :tab, required: true do
+    attr :active, :boolean
+    attr :patch, :string, required: true
+  end
+
+  def tab_group(assigns) do
+    ~H"""
+    <div class="flex items-center justify-between py-3 overflow-auto">
+      <div class="inline-flex gap-2 bg-zinc-100 rounded-full p-2">
+        <.link :for={tab <- @tab} patch={tab.patch}>
+          <div class={[
+            "rounded-full py-2 px-3 text-sm leading-6 flex gap-2 items-center whitespace-nowrap",
+            tab_group_active_class(tab)
+          ]}>
+            {render_slot(tab)}
+          </div>
+        </.link>
+      </div>
+    </div>
+    """
+  end
+
+  defp tab_group_active_class(tab) do
+    if tab[:active] do
+      "text-zinc-100 active:text-white/80 bg-zinc-900 hover:bg-zinc-700"
+    else
+      "text-zinc-900 active:text-zinc-900/80 bg-zinc-100 hover:bg-white"
+    end
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do
