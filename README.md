@@ -2,7 +2,7 @@
 
 Allows LiveComponents to receive messages from other processes, for example by subscribing to PubSub topics.
 
-![Demo](./priv/demo.mov)
+https://github.com/user-attachments/assets/4a1790c0-fb85-45ba-a869-229b54f71bda
 
 ## Run the Demo App
 
