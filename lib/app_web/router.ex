@@ -17,6 +17,9 @@ defmodule AppWeb.Router do
   scope "/", AppWeb do
     pipe_through :browser
 
+    live "/disconnected", DisconnectedLive.Index
+    live "/disconnected/:tab", DisconnectedLive.Index
+
     live "/", ConnectedLive.Index
     live "/:tab", ConnectedLive.Index
   end
